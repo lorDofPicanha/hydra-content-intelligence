@@ -10,19 +10,25 @@
 
 ## O que HYDRA faz
 
-Sistema autônomo que mantém um pool de **162 mind clones especialistas** atualizados com pesquisa fresca, sem intervenção humana.
+Sistema autônomo que alimenta **agentes (LLM-based)** com pesquisa contínua, sem intervenção humana. **Dois usos complementares:**
 
-**O problema que resolve:** mind clones respondem com conhecimento congelado no treino. Sem atualização contínua, consultas viram repetição do passado.
+**1. Atualizar conhecimento existente** — agentes treinados em determinado domínio recebem pesquisa fresca de fontes confiáveis (papers, repos, blogs especializados) sem precisar re-treinar.
 
-**A solução:** pipeline de content intelligence que roda 2x/dia (6h + 18h BRT), ingere 115 fontes (RSS, GitHub, YouTube, podcasts, web), filtra ruído com LLM scoring, e distribui insights pra cada clone via per-clone markdown feed. Quando você consulta um clone, ele responde com pesquisa de <24h atrás.
+**2. Adquirir conhecimento novo** — agentes podem ser **ampliados para novos domínios** via curadoria HYDRA: configure as fontes do domínio-alvo, e o agente passa a receber expertise contextual no momento da consulta.
+
+**O problema que resolve:** agentes respondem com conhecimento congelado no treino. HYDRA fecha o loop — ingere pesquisa fresca, indexa por relevância, e injeta no contexto do agente no momento da consulta. Com URLs traceable, tier de qualidade, e flags anti-alucinação.
+
+**A solução:** pipeline de content intelligence que roda 2x/dia (6h + 18h BRT), ingere 115 fontes (RSS, GitHub, YouTube, podcasts, web), filtra ruído com LLM scoring, e distribui insights pra cada agente via feed dedicado. Quando você consulta um agente, ele responde com pesquisa de <24h atrás — seja sobre um domínio que ele já dominava (atualização) ou um domínio novo (aquisição).
+
+Caso de uso atual: pool de **162 agentes especialistas** mantidos atualizados + expandidos para novos domínios via configuração de fontes.
 
 ```
-115 fontes → Pipeline 7-fase → 162 clones com feeds frescos
+115 fontes → Pipeline 7-fase → Agentes com feeds frescos
    ↓             ↓                      ↓
-  RSS         Score S/A/B          Consultation
-  GitHub      Anti-hallucination   com URLs reais
-  YouTube     Tier filtering       quarantine flags
-  Podcasts    Token budget         staleness signal
+  RSS         Score S/A/B          Consultation com:
+  GitHub      Anti-hallucination     • Conhecimento atualizado
+  YouTube     Tier filtering         • Conhecimento NOVO (novos domínios)
+  Podcasts    Token budget           • URLs reais, quarantine, staleness
   Web
 ```
 
@@ -41,24 +47,26 @@ Sistema autônomo que mantém um pool de **162 mind clones especialistas** atual
 5. Score          — LLM judge classifica em tiers S/A/B
 6. Extract        — Wisdom extraction com anti-hallucination
                     (quote verifier contra fonte original)
-7. Distribute     — Route to clones via keyword*0.6 + dept*0.3 + tier*0.1
-                    Write to per-clone append-only feed
+7. Distribute     — Route to agentes via keyword*0.6 + dept*0.3 + tier*0.1
+                    Write to per-agent append-only feed
 ```
 
 ### Distribution Algorithm
 
 Roteamento de cada item processado:
-- **Score por clone:** `keyword_hits × 0.6 + department_match × 0.3 + tier_bonus × 0.1`
+- **Score por agente:** `keyword_hits × 0.6 + department_match × 0.3 + tier_bonus × 0.1`
 - **Filtro:** score ≥ 0.3
-- **Cap:** max 25 clones por item
+- **Cap:** max 25 agentes por item
 
-Exemplo real (sessão 08/Mai com dossiê high-ticket marketing): 1.006 items → **25.150 entries distribuídas** em 25 clones de marketing/sales.
+Configurável via `routing.yaml` + 3-layer YAML domain mapping (Story 1.6) — dá pra adicionar **agentes novos** simplesmente registrando o departamento + keywords; HYDRA passa a rotear automaticamente para eles. Mesmo para domínios que o agente não conhecia originalmente, basta configurar as fontes.
+
+Exemplo real (sessão 08/Mai com dossiê high-ticket marketing): 1.006 items → **25.150 entries distribuídas** em 25 agentes de marketing/sales.
 
 ### Consumption (feed-reader)
 
-Quando você consulta um clone via `/expert-consult`:
+Quando você consulta um agente:
 ```js
-loadCloneFeeds(cloneId, { days: 30, maxTokens: 30000, minTier: 'A' })
+loadCloneFeeds(agentId, { days: 30, maxTokens: 30000, minTier: 'A' })
 ```
 
 Retorna `FeedEntry[]` que vira contexto injetado no prompt:
@@ -153,7 +161,7 @@ Mind Clone Conclave: martin-fowler + werner-vogels + charity-majors
 | Código shipped | 1.052 LOC + 399 tests |
 | Tests passing | **617/617** |
 | ADRs formalizados | 4 |
-| Mind Clones consultados | 3 (conclave) |
+| Agentes consultados (advisory) | 3 (via AIOS Mind Clone Conclave) |
 | Subagent spawns | ~14 (architect/pm/po/dev/devops × multiple rounds) |
 | PO validation rounds | 3 (PRD v0.7 → v0.9 → v1.0 RC) |
 | Commits no branch | 6 |
@@ -213,7 +221,7 @@ docs/
 ├── 03-architecture/
 │   ├── architecture.md                ← 1.262 LOC
 │   ├── adrs/                          ← 4 ADRs (streaming/vector/observability/consumption)
-│   ├── conclave/                      ← mind clone synthesis output
+│   ├── conclave/                      ← agent synthesis output (AIOS advisors)
 │   └── sharded/                       ← 12 architecture sections
 ├── 04-validation/                     ← PO validation reports
 └── 05-feasibility/
@@ -227,9 +235,9 @@ hydra-content-intelligence/
 ├── src/
 │   ├── pipeline.js                    ← 963 LOC monolith (Story 1.4 splits)
 │   ├── distribution/
-│   │   ├── mind-clone-router.js       ← scoring + routing
-│   │   ├── feed-writer.js             ← append-only per-clone
-│   │   └── feed-reader.js             ← Story 1.12 (consumption)
+│   │   ├── mind-clone-router.js       ← scoring + routing por agente
+│   │   ├── feed-writer.js             ← append-only feed per agente
+│   │   └── feed-reader.js             ← Story 1.12 (consumption side)
 │   ├── sources/                       ← 7 adapters
 │   ├── dedup/                         ← SQLite-backed
 │   ├── curator/                       ← scoring + filtering
@@ -242,9 +250,9 @@ hydra-content-intelligence/
 
 ---
 
-HYDRA é a peça que fecha o loop: gera conhecimento fresco → distribui pros clones → clones consultam com pesquisa real, não com conhecimento congelado.
+HYDRA é a peça que fecha o loop: gera conhecimento fresco → distribui pros agentes → agentes consultam com pesquisa real, não com conhecimento congelado. Funciona para **atualizar** o que o agente já sabia E para **dar conhecimento novo** em domínios que ele nunca treinou.
 
-**O resto é Mind Clone DNA fazendo o trabalho dele.**
+**O resto é o agente fazendo o trabalho dele — com fontes reais embaixo.**
 
 — Breno
 
