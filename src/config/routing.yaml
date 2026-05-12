@@ -1,0 +1,54 @@
+routing:
+  min_relevance_score: 0.3
+  max_clones_per_item: 25
+  tier_priority_map:
+    S: urgent
+    A: normal
+    B: low
+  keyword_weight: 0.6
+  department_weight: 0.3
+  tier_weight: 0.1
+  feedback_floor: 0.2
+  retention_days: 30
+
+  # Forced routes: domain -> clones always included
+  forced_routes:
+    ai-ml:
+      - andrej-karpathy
+      - chip-huyen
+    marketing:
+      - alex-hormozi
+      - seth-godin
+    engenharia:
+      - martin-fowler
+      - simon-willison
+    # Design Systems (added 27/Apr/2026) — drives AIOS design squad
+    # Mind clones routed when content matches DESIGN.md / design-system topics
+    design-systems:
+      - dieter-rams           # industrial design philosophy
+      - brad-frost            # atomic design / design systems
+      - vitaly-friedman       # Smashing Magazine, design quality
+      - val-head              # motion design
+      - don-norman            # UX principles
+      - julie-zhuo            # product design leadership
+      - tobias-van-schneider  # visual design
+      - erik-spiekermann      # typography
+      - john-maeda            # computational design
+      - kat-holmes            # inclusive design
+
+  # Bridge publisher config
+  bridge:
+    max_publishes_per_cycle: 10
+    pending_file: pending-bridge-publish.jsonl
+
+  # Digest config
+  digest:
+    output_dir: digests/distribution
+
+  # Feedback config
+  feedback:
+    reset_interval_days: 30
+    min_relevance_floor: 0.2
+    boost_increment: 0.05
+    penalty_increment: 0.05
+    irrelevant_threshold: 0.5
